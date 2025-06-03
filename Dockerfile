@@ -5,9 +5,6 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-ENV ALPACA_API_SECRET=$ALPACA_API_SECRET
-ENV ALPACA_API_KEY=$ALPACA_API_KEY
-ENV OPENAI_API_KEY=$OPENAI_API_KEY
 ENV ALPACA_BASE_URL=https://paper-api.alpaca.markets
 
 # Install build dependencies
@@ -19,7 +16,7 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Copy only the necessary files for dependency installation
-COPY backend/* /app/
+COPY backend /app/
 
 # Install dependencies
 RUN python -m pip install --upgrade pip && \
