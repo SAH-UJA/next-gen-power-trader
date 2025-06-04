@@ -2,6 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import './App.css';
 
+function formatTime(isoString) {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 function App() {
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState([]);
@@ -15,7 +21,7 @@ function App() {
   const sampleQuestions = [
     "What all can you do?",
     "Buy 10 GOOGL stocks",
-    "Compare AAPL and MSFT stock prices"
+    "What are the pros of ETFs over MFs?"
   ];
 
   useEffect(() => {
@@ -76,6 +82,13 @@ function App() {
         const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/trade/accountInfo");
         result = await res.json();
         apiReply = "Account Info:\n" + JSON.stringify(result, null, 2);
+      } else if (toolConfig.function === "get_trade_status") {
+        const params = toolConfig.params || {};
+        const orderId = params.orderId || params.order_id;
+        if (!orderId) throw new Error("orderId missing in params for get_trade_status");
+        const res = await fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/status/${orderId}`);
+        result = await res.json();
+        apiReply = "Trade Status:\n" + JSON.stringify(result, null, 2);
       } else {
         console.error("Unknown tool function:", toolConfig.function);
         throw new Error("Unknown tool function requested.");
@@ -94,7 +107,8 @@ function App() {
     setLoading(true);
     setError("");
 
-    const newChat = [...chat, { role: "user", content: text }];
+    const userTimestamp = new Date().toISOString();
+    const newChat = [...chat, { role: "user", content: text, timestamp: userTimestamp }];
     setChat(newChat);
 
     try {
@@ -120,10 +134,16 @@ function App() {
       } else {
         reply = "No answer or tool configuration received.";
       }
-      setChat([...newChat, { role: "assistant", content: reply }]);
+      setChat(prev => [
+        ...newChat,
+        { role: "assistant", content: reply, timestamp: new Date().toISOString() }
+      ]);
     } catch (err) {
       setError('Error connecting to backend.');
-      setChat([...chat, { role: "assistant", content: "Backend Error: Unable to fetch." }]);
+      setChat(prev => [
+        ...chat,
+        { role: "assistant", content: "Backend Error: Unable to fetch.", timestamp: new Date().toISOString() }
+      ]);
     }
     setLoading(false);
   };
@@ -197,11 +217,18 @@ function App() {
 
         {/* Render chat, and conditionally show confirmation widget below "please confirm" */}
         {chat.map((msg, idx) => {
+          const roleLabel = msg.role === 'user' ? "You" : "Assistant";
+          const timeStr = formatTime(msg.timestamp);
+
           const msgNode = (
             <div
               key={idx}
               className={`chat-message ${msg.role === 'user' ? "chat-user" : "chat-assistant"}`}
             >
+              <div className="chat-meta">
+                <span className="chat-role">{roleLabel}</span>
+                <span className="chat-time">{timeStr}</span>
+              </div>
               <span className="chat-bubble">
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </span>
@@ -234,16 +261,16 @@ function App() {
                         pendingTrade.userQuestion,
                         "Trade Submitted:\n" + JSON.stringify(result, null, 2)
                       );
-                      setChat(prev => [...prev, { role: 'assistant', content: humanized }]);
+                      setChat(prev => [...prev, { role: 'assistant', content: humanized, timestamp: new Date().toISOString() }]);
                     } catch (e) {
-                      setChat(prev => [...prev, { role: 'assistant', content: 'Trade submission failed: ' + (e.message || e) }]);
+                      setChat(prev => [...prev, { role: 'assistant', content: 'Trade submission failed: ' + (e.message || e), timestamp: new Date().toISOString() }]);
                     }
                     setPendingTrade(null);
                     setConfirmLoading(false);
                   }}
                   onAbort={() => {
                     setPendingTrade(null);
-                    setChat(prev => [...prev, { role: "assistant", content: "Trade submission aborted by user." }]);
+                    setChat(prev => [...prev, { role: "assistant", content: "Trade submission aborted by user.", timestamp: new Date().toISOString() }]);
                   }}
                 />
               </React.Fragment>

@@ -10,15 +10,6 @@ SYSTEM_PROMPT = """
 - **Execute Trades**: Facilitate and optimize the trading experience.
 - **Research and Analysis**: Assist with detailed insights and analyses.
 
-### Trading Details:
-
-- **Fields**:
-  - `action`: `'buy'` or `'sell'`
-  - `symbol`: Stock ticker (uppercase)
-  - `quantity`: Number of shares (positive integer)
-  - `order_type`: `'market'`, `'limit'`, or `'stop'` (default: `'market'`)
-  - `price`: Optional for limit/stop orders (float or null)
-
 ### Guidelines:
 
 - **Validation**: Extract and validate as much detail as possible.
