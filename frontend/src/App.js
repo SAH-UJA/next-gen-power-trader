@@ -1,106 +1,31 @@
-import React, { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import './App.css';
+import React, { useState, useRef, useEffect } from "react";
+import ChatMessage from "./components/ChatMessage";
+import ConfirmationWidget from "./components/ConfirmationWidget";
+import SampleQuestions from "./components/SampleQuestions";
+import { buildContext, humanizeStructuredReply, handleToolCall } from "./hooks/useChatApi";
+import "./App.css";
 
-function formatTime(isoString) {
-  if (!isoString) return '';
-  const date = new Date(isoString);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
+const SAMPLE_QUESTIONS = [
+  "What all can you do?",
+  "Buy 10 GOOGL stocks",
+  "What are the pros of ETFs over MFs?"
+];
 
 function App() {
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [pendingTrade, setPendingTrade] = useState(null); // {params, userQuestion, chatIdx}
+  const [pendingTrade, setPendingTrade] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const chatEndRef = useRef(null);
-
-  // 1. Add the sample questions array
-  const sampleQuestions = [
-    "What all can you do?",
-    "Buy 10 GOOGL stocks",
-    "What are the pros of ETFs over MFs?"
-  ];
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chat, pendingTrade]);
 
-  const buildContext = () => {
-    return chat
-      .filter(msg => msg.role === 'user' || msg.role === 'assistant')
-      .slice(-5)
-      .map(msg => ({ role: msg.role, content: msg.content }));
-  };
+  // You may leave the implementation of handleToolCall or refactor as in hooks/useChatApi.js
 
-  const humanizeStructuredReply = async (prevMessage, apiReply) => {
-    try {
-      const rawConcat = prevMessage + '\n' + apiReply;
-      const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/humanizer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raw: rawConcat }),
-      });
-      const data = await res.json();
-      if (data.answer) {
-        return data.answer;
-      }
-      return apiReply;
-    } catch (e) {
-      return apiReply + "\n(Humanizer unavailable)";
-    }
-  };
-
-  const handleToolCall = async (toolConfig, prevMessage, newChatArr) => {
-    if (!toolConfig || !toolConfig.function) throw new Error("No tool config found.");
-
-    // Intercept trade submission and ask for confirmation
-    if (toolConfig.function === "submit_trade") {
-      const confirmMsg = "Please confirm the trade details below before submission.";
-      // Find the chat index where this message will be added (after tool call)
-      const chatIdx = newChatArr.length; // will become the index of the next assistant message
-      setPendingTrade({
-        params: toolConfig.params,
-        userQuestion: prevMessage,
-        chatIdx
-      });
-      return confirmMsg;
-    }
-
-    let result = null;
-    let apiReply = "";
-    try {
-      if (toolConfig.function === "get_order_details") {
-        const { orderId } = toolConfig.params || {};
-        if (!orderId) throw new Error("orderId missing in params");
-        const res = await fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/status/${orderId}`);
-        result = await res.json();
-        apiReply = "Order Details:\n" + JSON.stringify(result, null, 2);
-      } else if (toolConfig.function === "get_account_info") {
-        const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/trade/accountInfo");
-        result = await res.json();
-        apiReply = "Account Info:\n" + JSON.stringify(result, null, 2);
-      } else if (toolConfig.function === "get_trade_status") {
-        const params = toolConfig.params || {};
-        const orderId = params.orderId || params.order_id;
-        if (!orderId) throw new Error("orderId missing in params for get_trade_status");
-        const res = await fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/status/${orderId}`);
-        result = await res.json();
-        apiReply = "Trade Status:\n" + JSON.stringify(result, null, 2);
-      } else {
-        console.error("Unknown tool function:", toolConfig.function);
-        throw new Error("Unknown tool function requested.");
-      }
-      const humanized = await humanizeStructuredReply(prevMessage, apiReply);
-      return humanized;
-    } catch (e) {
-      throw new Error("Error in tool API: " + (e.message || e));
-    }
-  };
-
-  // For both sample and input submit
   const sendQuestion = async (text) => {
     if (pendingTrade) return;
     setQuestion("");
@@ -117,7 +42,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: text,
-          context: buildContext()
+          context: buildContext(chat)
         }),
       });
       const data = await res.json();
@@ -148,46 +73,16 @@ function App() {
     setLoading(false);
   };
 
-  // 2. Function to handle clicking a sample card
-  const handleSampleQuestion = async (sample) => {
+  const handleSampleQuestion = (sample) => {
     if (loading || pendingTrade) return;
-    await sendQuestion(sample);
+    sendQuestion(sample);
   };
 
-  // User text submit
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!question || pendingTrade) return;
-    await sendQuestion(question);
+    sendQuestion(question);
   };
-
-  // The inline confirmation component
-  const ConfirmationWidget = ({ params, onConfirm, onAbort, loading }) => (
-    <div className="confirmation-widget">
-      <strong>Confirm Trade Execution</strong>
-      <pre style={{
-        background: "#eee",
-        padding: 10,
-        borderRadius: 4,
-        maxHeight: 200,
-        overflowY: "auto",
-        marginTop: 8
-      }}>
-        {JSON.stringify(params, null, 2)}
-      </pre>
-      <div className="confirm-actions" style={{ marginTop: 10 }}>
-        <button
-          disabled={loading}
-          onClick={onConfirm}
-        >Confirm</button>
-        <button
-          disabled={loading}
-          style={{ marginLeft: 8 }}
-          onClick={onAbort}
-        >Abort</button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="chat-app-container">
@@ -196,45 +91,14 @@ function App() {
         {chat.length === 0 && (
           <>
             <div className="chat-empty">Ask a question to get started!</div>
-            {/* Sample Question Cards */}
-            <div className="sample-questions-container">
-              {sampleQuestions.map((sample, idx) => (
-                <div
-                  key={idx}
-                  className="sample-question-card"
-                  onClick={() => handleSampleQuestion(sample)}
-                  style={{
-                    cursor: (loading || pendingTrade) ? "not-allowed" : "pointer",
-                    opacity: (loading || pendingTrade) ? 0.5 : 1
-                  }}
-                >
-                  {sample}
-                </div>
-              ))}
-            </div>
+            <SampleQuestions
+              samples={SAMPLE_QUESTIONS}
+              disabled={loading || pendingTrade}
+              onSample={handleSampleQuestion}
+            />
           </>
         )}
-
-        {/* Render chat, and conditionally show confirmation widget below "please confirm" */}
         {chat.map((msg, idx) => {
-          const roleLabel = msg.role === 'user' ? "You" : "Assistant";
-          const timeStr = formatTime(msg.timestamp);
-
-          const msgNode = (
-            <div
-              key={idx}
-              className={`chat-message ${msg.role === 'user' ? "chat-user" : "chat-assistant"}`}
-            >
-              <div className="chat-meta">
-                <span className="chat-role">{roleLabel}</span>
-                <span className="chat-time">{timeStr}</span>
-              </div>
-              <span className="chat-bubble">
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
-              </span>
-            </div>
-          );
-          // If this is the assistant "please confirm" message, render the confirmation widget just after it
           if (
             pendingTrade &&
             msg.role === "assistant" &&
@@ -243,7 +107,7 @@ function App() {
           ) {
             return (
               <React.Fragment key={idx}>
-                {msgNode}
+                <ChatMessage msg={msg} />
                 <ConfirmationWidget
                   params={pendingTrade.params}
                   loading={confirmLoading}
@@ -275,9 +139,8 @@ function App() {
                 />
               </React.Fragment>
             );
-          } else {
-            return msgNode;
           }
+          return <ChatMessage key={idx} msg={msg} />;
         })}
         <div ref={chatEndRef} />
       </main>
