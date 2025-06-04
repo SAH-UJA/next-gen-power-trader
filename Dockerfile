@@ -13,12 +13,13 @@ RUN apt-get update && \
     make \
     && rm -rf /var/lib/apt/lists/*
 
-# Set workdir (inside backend directory)
+# Copy backend code (with built frontend inside backend/frontend/build)
 WORKDIR /app
 
-# Copy backend code (with built frontend inside backend/frontend/build)
-COPY backend /app
+# Copy backend code (including requirements.txt, src/, etc.) into /backend
+COPY backend/ /app/backend/
 
+# Copy ONLY the React build output into /backend/frontend/build/
 COPY frontend/build/ /app/frontend/build/
 
 # Install backend dependencies
@@ -27,6 +28,6 @@ RUN pip install --upgrade pip && \
 
 EXPOSE 8000
 
-# Entry point for FastAPI, assuming your FastAPI app is in `src/main.py`,
-# and __init__.py in src: `python -m src.main` will run it.
+WORKDIR /app/backend
+
 CMD ["python", "-m", "app"]
