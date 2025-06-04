@@ -32,7 +32,7 @@ function App() {
   const humanizeStructuredReply = async (prevMessage, apiReply) => {
     try {
       const rawConcat = prevMessage + '\n' + apiReply;
-      const res = await fetch("http://localhost:8000/ask/humanizer", {
+      const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/humanizer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ raw: rawConcat }),
@@ -69,11 +69,11 @@ function App() {
       if (toolConfig.function === "get_order_details") {
         const { orderId } = toolConfig.params || {};
         if (!orderId) throw new Error("orderId missing in params");
-        const res = await fetch(`http://localhost:8000/trade/status/${orderId}`);
+        const res = await fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/status/${orderId}`);
         result = await res.json();
         apiReply = "Order Details:\n" + JSON.stringify(result, null, 2);
       } else if (toolConfig.function === "get_account_info") {
-        const res = await fetch("http://localhost:8000/trade/accountInfo");
+        const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/trade/accountInfo");
         result = await res.json();
         apiReply = "Account Info:\n" + JSON.stringify(result, null, 2);
       } else {
@@ -98,7 +98,7 @@ function App() {
     setChat(newChat);
 
     try {
-      const res = await fetch("http://localhost:8000/ask/assistant", {
+      const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -224,7 +224,7 @@ function App() {
                     setConfirmLoading(true);
                     setError("");
                     try {
-                      const res = await fetch("http://localhost:8000/trade/submit", {
+                      const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/trade/submit", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(pendingTrade.params),
