@@ -24,8 +24,6 @@ function App() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chat, pendingTrade]);
 
-  // You may leave the implementation of handleToolCall or refactor as in hooks/useChatApi.js
-
   const sendQuestion = async (text) => {
     if (pendingTrade) return;
     setQuestion("");

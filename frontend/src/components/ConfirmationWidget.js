@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function ConfirmationWidget({ params, onConfirm, onAbort, loading }) {
     return (
         <div className="confirmation-widget">

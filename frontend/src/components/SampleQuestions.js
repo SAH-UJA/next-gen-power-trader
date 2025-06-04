@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function SampleQuestions({ samples, disabled, onSample }) {
     return (
         <div className="sample-questions-container">
