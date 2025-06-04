@@ -1,10 +1,14 @@
 name: Next Gen AI Power Trader App
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   build:
-    name: Build
+    name: Build React frontend and prepare backend
     runs-on: ubuntu-latest
 
     steps:
@@ -13,35 +17,61 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
       with:
-        python-version: 3.11
+        node-version: 20
+
+    - name: Install frontend dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Build frontend
+      working-directory: ./frontend
+      run: npm run build
+
+    - name: Copy frontend build to backend
+      run: |
+        rm -rf backend/frontend/build
+        cp -r frontend/build backend/frontend/build
+
+    - name: Upload backend (including built frontend) as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: backend-with-frontend
+        path: backend
+
   deploy:
-    name: deploy
-    needs: [build] 
+    name: Deploy
+    needs: [build]
     runs-on: ubuntu-latest
 
-    steps: 
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
-      - name: Build Docker image
-        run: docker build --no-cache -t ${{ secrets.DOCKER_USERNAME }}/next-gen-power-trader-app:latest .
+    - name: Download backend (including built frontend)
+      uses: actions/download-artifact@v3
+      with:
+        name: backend-with-frontend
+        path: backend
 
-      - name: Push Docker image to Docker Hub
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/next-gen-power-trader-app:latest
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build Docker image
+      run: docker build --no-cache -t ${{ secrets.DOCKER_USERNAME }}/next-gen-power-trader-app:latest .
+
+    - name: Push Docker image to Docker Hub
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/next-gen-power-trader-app:latest
       
-      - name: Deploy to Render.com
-        uses: johnbeynon/render-deploy-action@v0.0.8
-        with:
-          service-id: ${{ secrets.RENDER_SERVICE_ID }} 
-          api-key: ${{ secrets.RENDER_API_KEY }}
+    - name: Deploy to Render.com
+      uses: johnbeynon/render-deploy-action@v0.0.8
+      with:
+        service-id: ${{ secrets.RENDER_SERVICE_ID }}
+        api-key: ${{ secrets.RENDER_API_KEY }}
