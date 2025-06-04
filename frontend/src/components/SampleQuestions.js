@@ -1,14 +1,14 @@
-export default function SampleQuestions({ samples, disabled, onSample }) {
+export default function SampleQuestions({ sampleQuestions, onSampleClick, loading, pendingTrade }) {
     return (
         <div className="sample-questions-container">
-            {samples.map((sample, idx) => (
+            {sampleQuestions.map((sample, idx) => (
                 <div
                     key={idx}
                     className="sample-question-card"
-                    onClick={() => !disabled && onSample(sample)}
+                    onClick={() => onSampleClick(sample)}
                     style={{
-                        cursor: disabled ? "not-allowed" : "pointer",
-                        opacity: disabled ? 0.5 : 1
+                        cursor: (loading || pendingTrade) ? "not-allowed" : "pointer",
+                        opacity: (loading || pendingTrade) ? 0.5 : 1
                     }}
                 >
                     {sample}

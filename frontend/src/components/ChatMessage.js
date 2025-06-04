@@ -1,5 +1,5 @@
-import ReactMarkdown from "react-markdown";
-import formatTime from "../utils/formatTime";
+import ReactMarkdown from 'react-markdown';
+import { formatTime } from '../utils';
 
 export default function ChatMessage({ msg }) {
     const roleLabel = msg.role === 'user' ? "You" : "Assistant";
