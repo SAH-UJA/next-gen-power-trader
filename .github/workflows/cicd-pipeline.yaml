@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build React frontend and prepare backend
+    name: Build React frontend and backend
     runs-on: ubuntu-latest
 
     steps:
@@ -30,16 +30,17 @@ jobs:
       working-directory: ./frontend
       run: npm run build
 
-    - name: Copy frontend build to backend
-      run: |
-        rm -rf backend/frontend/build
-        cp -r frontend/build backend/frontend/build
-
-    - name: Upload backend (including built frontend) as artifact
+    - name: Upload backend as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: backend-with-frontend
+        name: backend
         path: backend
+
+    - name: Upload frontend as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend
+        path: frontend
 
   deploy:
     name: Deploy
@@ -52,11 +53,17 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Download backend (including built frontend)
+    - name: Download backend artifact
       uses: actions/download-artifact@v4
       with:
-        name: backend-with-frontend
+        name: backend
         path: backend
+
+    - name: Download frontend artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend
+        path: frontend
 
     - name: Login to Docker Hub
       uses: docker/login-action@v2
@@ -69,7 +76,7 @@ jobs:
 
     - name: Push Docker image to Docker Hub
       run: docker push ${{ secrets.DOCKER_USERNAME }}/next-gen-power-trader-app:latest
-      
+
     - name: Deploy to Render.com
       uses: johnbeynon/render-deploy-action@v0.0.8
       with:
