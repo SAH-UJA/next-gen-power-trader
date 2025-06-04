@@ -22,12 +22,12 @@ COPY backend/ /app/backend/
 # Copy ONLY the React build output into /backend/frontend/build/
 COPY frontend/build/ /app/frontend/build/
 
+WORKDIR /app/backend
+
 # Install backend dependencies
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
-
-WORKDIR /app/backend
 
 CMD ["python", "-m", "app"]
