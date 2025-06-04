@@ -19,6 +19,8 @@ WORKDIR /app
 # Copy backend code (with built frontend inside backend/frontend/build)
 COPY backend /app
 
+COPY frontend/build/ /app/frontend/build/
+
 # Install backend dependencies
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
