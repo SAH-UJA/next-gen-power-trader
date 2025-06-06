@@ -2,13 +2,23 @@ import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 
 import { sampleQuestions } from './constants';
-import { humanizeStructuredReply } from './utils';
 
 import SampleQuestions from './components/SampleQuestions';
 import ChatWindow from './components/ChatWindow';
 import ChatInputBar from './components/ChatInputBar';
 
 function App() {
+
+  // Helper: Stream text to UI character by character with delay
+  const streamTextToUI = async (text, initialContent, setStreamingContentFn) => {
+    let localContent = initialContent;
+    for (let i = 0; i < text.length; i++) {
+      localContent += text[i];
+      setStreamingContentFn(localContent);
+      await new Promise(res => setTimeout(res, 12));
+    }
+    return localContent;
+  };
 
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState([]);
@@ -79,6 +89,9 @@ function App() {
           return null;
         }
       };
+
+      // Helper: Stream text to UI character by character with delay
+      // (Removed duplicate definition; now using top-level streamTextToUI)
 
       while (!done) {
         const { value, done: doneReading } = await reader.read();
@@ -242,8 +255,9 @@ function App() {
                           localAiMsgContent += buffer2;
                           setStreamingContent(localAiMsgContent);
                         }
-                        // After streaming, push to chat
-                        setChat(prev => [...prev, { role: "assistant", content: localAiMsgContent, timestamp: new Date().toISOString() }]);
+                        // Normalize excessive newlines before pushing to chat
+                        const normalizedContent = localAiMsgContent.replace(/(\n\s*){3,}/g, '\n\n');
+                        setChat(prev => [...prev, { role: "assistant", content: normalizedContent, timestamp: new Date().toISOString() }]);
                         setStreamingContent("");
                       } catch (err2) {
                         localAiMsgContent += "[Error executing function call or humanizing response]";
@@ -275,8 +289,8 @@ function App() {
             } else {
               // Only add assistant message if there is actual content (not for tool call fragments)
               if (line.trim() !== "") {
-                aiMsgContent += line;
-                setStreamingContent(aiMsgContent);
+                // Enhanced streaming: stream each character with a small delay for smoother UI
+                aiMsgContent = await streamTextToUI(line, aiMsgContent, setStreamingContent);
               }
             }
           }
@@ -326,11 +340,40 @@ function App() {
           body: JSON.stringify(pendingTrade.params),
         });
         const result = await res.json();
-        const humanized = await humanizeStructuredReply(
-          pendingTrade.userQuestion,
-          "Trade Submitted:\n" + JSON.stringify(result, null, 2)
-        );
-        setChat(prev => [...prev, { role: 'assistant', content: humanized, timestamp: new Date().toISOString() }]);
+
+        // Stream the humanizer response
+        const rawConcat = pendingTrade.userQuestion + '\nTrade Submitted:\n' + JSON.stringify(result, null, 2);
+        const humanizerRes = await fetch("http://localhost:8000/ask/humanizer/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raw: rawConcat }),
+        });
+
+        if (!humanizerRes.body || !window.ReadableStream) {
+          // Fallback to old method if streaming not supported
+          const data = await humanizerRes.json();
+          if (data.answer) {
+            setChat(prev => [...prev, { role: 'assistant', content: data.answer, timestamp: new Date().toISOString() }]);
+          } else {
+            setChat(prev => [...prev, { role: 'assistant', content: `Trade Submitted:\n${JSON.stringify(result, null, 2)}`, timestamp: new Date().toISOString() }]);
+          }
+        } else {
+          const reader = humanizerRes.body.getReader();
+          const decoder = new TextDecoder();
+          let resultStr = '';
+          setStreamingContent(""); // Clear any previous streaming content
+          let streamingContentLocal = "";
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            // Stream each character with delay for smoothness
+            streamingContentLocal = await streamTextToUI(chunk, streamingContentLocal, setStreamingContent);
+            resultStr += chunk;
+          }
+          setChat(prev => [...prev, { role: 'assistant', content: resultStr.trim() || `Trade Submitted:\n${JSON.stringify(result, null, 2)}`, timestamp: new Date().toISOString() }]);
+          setStreamingContent("");
+        }
       } catch (e) {
         setChat(prev => [...prev, { role: 'assistant', content: 'Trade submission failed: ' + (e.message || e), timestamp: new Date().toISOString() }]);
       }

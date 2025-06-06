@@ -6,6 +6,24 @@
   background: #f3f4f7;
 }
 
+.chat-streaming-cursor {
+  animation: blink-cursor 1s steps(2, start) infinite;
+}
+
+@keyframes blink-cursor {
+  0% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0.5;
+  }
+}
+
 .chat-header {
   background: linear-gradient(90deg,
       #bae3ff 0%,
@@ -57,6 +75,7 @@
 
 .chat-bubble {
   max-width: 70%;
+  white-space: pre-line;
   padding: 0px 10px 5px 15px;
   border-radius: 18px;
   background: #e3f2fd;
