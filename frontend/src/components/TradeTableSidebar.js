@@ -1,30 +1,66 @@
 import React, { useState, useEffect } from "react";
 import "./TradeTableSidebar.css";
 
-function TradeTableSidebar({ visible, onClose, status = "all", limit = 20 }) {
+const STATUS_OPTIONS = ["all", "open", "closed", "expired", "canceled", "filled"];
+
+function TradeTableSidebar({ visible, onClose, status: initialStatus = "all", limit: initialLimit = 20 }) {
     const [trades, setTrades] = useState([]);
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [hoveredRow, setHoveredRow] = useState(null);
 
+    // Filter state
+    const [status, setStatus] = useState(initialStatus);
+    const [limit, setLimit] = useState(initialLimit);
+    const [after, setAfter] = useState("");
+    const [until, setUntil] = useState("");
+    const [symbols, setSymbols] = useState(""); // comma-separated input
+
     useEffect(() => {
         if (!visible) return;
+
         const fetchTrades = () => {
-            setLoading(true);
             setError(null);
-            fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/trades?status=${status}&limit=${limit}`)
+
+            // Build query params
+            const params = new URLSearchParams();
+            if (status) params.append("status", status);
+            if (limit) params.append("limit", limit);
+            if (after) params.append("after", after);
+            if (until) params.append("until", until);
+            if (symbols) {
+                // Send as repeated query param if multiple symbols
+                symbols
+                    .split(",")
+                    .map(sym => sym.trim())
+                    .filter(Boolean)
+                    .forEach(sym => params.append("symbols", sym));
+            }
+
+            fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/trades?${params.toString()}`)
                 .then(response => {
                     if (!response.ok) throw new Error("Network response was not ok");
                     return response.json();
                 })
                 .then(data => setTrades(data))
-                .catch(() => setError("Error fetching trades"))
-                .finally(() => setLoading(false));
+                .catch(() => setError("Error fetching trades"));
         };
+
         fetchTrades();
         const intervalId = setInterval(fetchTrades, 10000);
         return () => clearInterval(intervalId);
-    }, [status, limit, visible]);
+    },
+        [visible, status, limit, after, until, symbols]
+    );
+
+    // Handle datetime-local input to ISO string
+    const handleAfterChange = e => {
+        const value = e.target.value;
+        setAfter(value ? new Date(value).toISOString() : "");
+    };
+    const handleUntilChange = e => {
+        const value = e.target.value;
+        setUntil(value ? new Date(value).toISOString() : "");
+    };
 
     return (
         <>
@@ -35,8 +71,50 @@ function TradeTableSidebar({ visible, onClose, status = "all", limit = 20 }) {
             <aside className={`sidebar${visible ? " sidebar--open" : ""}`}>
                 <button className="sidebar-close-btn" onClick={onClose} title="Close">&times;</button>
                 <h2 className="sidebar-title">Trades</h2>
+
+                <div className="sidebar-filters">
+                    <div>
+                        <label>Status:</label>
+                        <select value={status} onChange={e => setStatus(e.target.value)}>
+                            {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Limit:</label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="200"
+                            value={limit}
+                            onChange={e => setLimit(Number(e.target.value))}
+                        />
+                    </div>
+                    <div>
+                        <label>Symbols (comma-separated):</label>
+                        <input
+                            type="text"
+                            value={symbols}
+                            onChange={e => setSymbols(e.target.value)}
+                            placeholder="e.g. AAPL,TSLA"
+                        />
+                    </div>
+                    <div>
+                        <label>After:</label>
+                        <input
+                            type="datetime-local"
+                            onChange={handleAfterChange}
+                        />
+                    </div>
+                    <div>
+                        <label>Until:</label>
+                        <input
+                            type="datetime-local"
+                            onChange={handleUntilChange}
+                        />
+                    </div>
+                </div>
+
                 {error && <div className="sidebar-error">{error}</div>}
-                {loading && trades.length === 0 && <div className="sidebar-loading">Loading...</div>}
                 <div className="sidebar-table-container">
                     <table className="trade-table">
                         <thead>
@@ -66,7 +144,7 @@ function TradeTableSidebar({ visible, onClose, status = "all", limit = 20 }) {
                                     <td>{trade.symbol}</td>
                                     <td>{trade.qty}</td>
                                     <td>{trade.side}</td>
-                                    <td>{trade.order_type}</td>
+                                    <td>{trade.order_type || trade.type}</td>
                                     <td
                                         className={
                                             trade.status === "filled"
@@ -78,7 +156,7 @@ function TradeTableSidebar({ visible, onClose, status = "all", limit = 20 }) {
                                     >
                                         {trade.status}
                                     </td>
-                                    <td>{new Date(trade.created_at).toLocaleString()}</td>
+                                    <td>{trade.created_at ? new Date(trade.created_at).toLocaleString() : ""}</td>
                                 </tr>
                             ))}
                         </tbody>

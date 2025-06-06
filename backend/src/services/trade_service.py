@@ -1,5 +1,6 @@
 from src.clients.broker import AlpacaBrokerClient
 from src.schemas.trade import TradeRequest
+from datetime import datetime  # For type hints
 
 broker_client = AlpacaBrokerClient()
 
@@ -16,5 +17,21 @@ def get_account_info():
     return broker_client.get_account_info()
 
 
-def list_trades(status: str = None, limit: int = 50):
-    return broker_client.list_trades(status=status, limit=limit)
+def list_trades(
+    status: str = None,
+    limit: int = None,
+    after: datetime = None,
+    until: datetime = None,
+    direction: str = None,
+    nested: bool = None,
+    symbols: list[str] = None,
+):
+    return broker_client.list_trades(
+        status=status,
+        limit=limit,
+        after=after,
+        until=until,
+        direction=direction,
+        nested=nested,
+        symbols=symbols,
+    )

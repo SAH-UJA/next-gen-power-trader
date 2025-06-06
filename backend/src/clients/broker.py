@@ -1,6 +1,7 @@
 from src.config.settings import settings
 import alpaca_trade_api as tradeapi
 from src.schemas.trade import TradeResult, TradeRequest
+from datetime import datetime
 
 
 class AlpacaBrokerClient:
@@ -10,6 +11,13 @@ class AlpacaBrokerClient:
             secret_key=settings.ALPACA_API_SECRET,
             base_url=settings.ALPACA_BASE_URL,
         )
+
+    @staticmethod
+    def _format_for_alpaca(dt: datetime) -> str:
+        # Returns string like '2025-06-19T17:51:00Z' (no ms, always Z)
+        if dt is None:
+            return None
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def get_account_info(self):
         try:
@@ -49,15 +57,32 @@ class AlpacaBrokerClient:
             print(f"Error in submit_trade: {e}")
             raise
 
-    def list_trades(self, status: str = None, limit: int = 50):
-        """
-        List all trades/orders from Alpaca.
-        :param status: Filter by order status (e.g., 'all', 'closed', 'open').
-        :param limit: Max number of orders to return.
-        :return: List of order dicts.
-        """
+    def list_trades(
+        self,
+        status: str = None,
+        limit: int = None,  # Alpaca's default is 50 if None, matching original behavior
+        after: datetime = None,
+        until: datetime = None,
+        direction: str = None,  # 'asc' or 'desc'
+        nested: bool = None,
+        symbols: list[str] = None,  # List of symbols to filter by
+    ):
         try:
-            orders = self.client.list_orders(status=status or "all", limit=limit)
+            # Preserve the original behavior: if status is None, default to "all"
+            actual_status = status if status is not None else "all"
+
+            after_str = self._format_for_alpaca(after) if after else None
+            until_str = self._format_for_alpaca(until) if until else None
+
+            orders = self.client.list_orders(
+                status=actual_status,
+                limit=limit,
+                after=after_str,
+                until=until_str,
+                direction=direction,
+                nested=nested,
+                symbols=symbols,
+            )
             return [order._raw for order in orders]
         except Exception as e:
             print(f"Error in list_trades: {e}")
