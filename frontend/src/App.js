@@ -55,9 +55,9 @@ function App() {
         throw new Error("Streaming not supported in this browser.");
       }
 
-      // Add a new assistant message with empty content
+      // Prepare to add a new assistant message only when content arrives
       let aiMsg = { role: "assistant", content: "", timestamp: new Date().toISOString() };
-      setChat(prev => [...newChat, aiMsg]);
+      let aiMsgAdded = false;
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
@@ -108,11 +108,16 @@ function App() {
             } catch (e) {
               // If JSON parsing fails, treat as plain text and append to message
               aiMsg.content += line;
-              setChat(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { ...aiMsg };
-                return updated;
-              });
+              if (!aiMsgAdded) {
+                setChat(prev => [...prev, aiMsg]);
+                aiMsgAdded = true;
+              } else {
+                setChat(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = { ...aiMsg };
+                  return updated;
+                });
+              }
               continue; // Skip further processing for this line
             }
 
@@ -271,13 +276,20 @@ function App() {
               }
               // You can add more tool handling logic here as needed
             } else {
-              aiMsg.content += line;
-              // Update the last assistant message in chat
-              setChat(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { ...aiMsg };
-                return updated;
-              });
+              // Only add assistant message if there is actual content (not for tool call fragments)
+              if (line.trim() !== "") {
+                aiMsg.content += line;
+                if (!aiMsgAdded) {
+                  setChat(prev => [...prev, aiMsg]);
+                  aiMsgAdded = true;
+                } else {
+                  setChat(prev => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = { ...aiMsg };
+                    return updated;
+                  });
+                }
+              }
             }
           }
         }
@@ -285,11 +297,16 @@ function App() {
       // If anything left in buffer after stream ends, append as text
       if (buffer && !done) {
         aiMsg.content += buffer;
-        setChat(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { ...aiMsg };
-          return updated;
-        });
+        if (!aiMsgAdded && aiMsg.content.trim() !== "") {
+          setChat(prev => [...prev, aiMsg]);
+          aiMsgAdded = true;
+        } else if (aiMsgAdded) {
+          setChat(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...aiMsg };
+            return updated;
+          });
+        }
       }
     } catch (err) {
       setError('Error connecting to backend.');
