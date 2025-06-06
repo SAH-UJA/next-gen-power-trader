@@ -252,7 +252,16 @@ export default function useChat() {
                             }
                         } else {
                             if (line.trim() !== "") {
-                                aiMsgContent = await streamTextToUI(line, aiMsgContent, setStreamingContent);
+                                // Try to parse as JSON with "content" field
+                                let parsedContentObj = null;
+                                try {
+                                    parsedContentObj = JSON.parse(line);
+                                } catch { }
+                                if (parsedContentObj && typeof parsedContentObj.content === "string") {
+                                    aiMsgContent = await streamTextToUI(parsedContentObj.content, aiMsgContent, setStreamingContent);
+                                } else {
+                                    aiMsgContent = await streamTextToUI(line, aiMsgContent, setStreamingContent);
+                                }
                             }
                         }
                     }
@@ -263,7 +272,9 @@ export default function useChat() {
                 setStreamingContent(aiMsgContent);
             }
             if (aiMsgContent.trim() !== "") {
-                setChat(prev => [...prev, { role: "assistant", content: aiMsgContent, timestamp: aiMsgTimestamp }]);
+                // Normalize excessive newlines for Markdown rendering
+                const normalizedContent = aiMsgContent.replace(/(\n\s*){3,}/g, '\n\n');
+                setChat(prev => [...prev, { role: "assistant", content: normalizedContent, timestamp: aiMsgTimestamp }]);
                 setStreamingContent("");
             }
         } catch (err) {
@@ -327,7 +338,9 @@ export default function useChat() {
                         streamingContentLocal = await streamTextToUI(chunk, streamingContentLocal, setStreamingContent);
                         resultStr += chunk;
                     }
-                    setChat(prev => [...prev, { role: 'assistant', content: resultStr.trim() || `Trade Submitted:\n${JSON.stringify(result, null, 2)}`, timestamp: new Date().toISOString() }]);
+                    const normalizedResultStr = resultStr.trim().replace(/(\n\s*){3,}/g, '\n\n');
+                    console.log("Assistant Markdown:", normalizedResultStr);
+                    setChat(prev => [...prev, { role: 'assistant', content: normalizedResultStr || `Trade Submitted:\n${JSON.stringify(result, null, 2)}`, timestamp: new Date().toISOString() }]);
                     setStreamingContent("");
                 }
             } catch (e) {

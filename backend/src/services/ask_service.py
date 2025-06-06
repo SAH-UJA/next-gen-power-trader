@@ -7,6 +7,9 @@ from src.schemas.ask import AskRequest, HumanizeDataRequest
 llm_client = OpenAIClient()
 
 
+import json
+
+
 def generate_assistant_stream(ask: AskRequest):
     try:
         for token in llm_client.generate_text(
@@ -16,9 +19,17 @@ def generate_assistant_stream(ask: AskRequest):
             tools=TOOLS,
             stream=True,
         ):
-            yield token
+            # If token is a tool call JSON, yield as-is; else wrap in {"content": ...}
+            try:
+                parsed = json.loads(token)
+                if isinstance(parsed, dict) and "tool_call" in parsed:
+                    yield token  # Already a complete tool_call JSON
+                    continue
+            except Exception:
+                pass
+            yield json.dumps({"content": token}) + "\n"
     except Exception as e:
-        yield f"\n[ERROR]: {str(e)}"
+        yield json.dumps({"error": str(e)}) + "\n"
 
 
 def generate_humanizer_stream(data: HumanizeDataRequest):
