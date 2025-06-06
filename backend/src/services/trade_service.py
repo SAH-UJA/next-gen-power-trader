@@ -14,3 +14,7 @@ def get_trade_status(order_id: str):
 
 def get_account_info():
     return broker_client.get_account_info()
+
+
+def list_trades(status: str = None, limit: int = 50):
+    return broker_client.list_trades(status=status, limit=limit)

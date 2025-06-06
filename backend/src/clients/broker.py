@@ -49,6 +49,20 @@ class AlpacaBrokerClient:
             print(f"Error in submit_trade: {e}")
             raise
 
+    def list_trades(self, status: str = None, limit: int = 50):
+        """
+        List all trades/orders from Alpaca.
+        :param status: Filter by order status (e.g., 'all', 'closed', 'open').
+        :param limit: Max number of orders to return.
+        :return: List of order dicts.
+        """
+        try:
+            orders = self.client.list_orders(status=status or "all", limit=limit)
+            return [order._raw for order in orders]
+        except Exception as e:
+            print(f"Error in list_trades: {e}")
+            raise
+
 
 if __name__ == "__main__":
     client = AlpacaBrokerClient()
