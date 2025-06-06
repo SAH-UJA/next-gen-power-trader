@@ -1,5 +1,3 @@
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { formatTime } from '../utils';
 
 export default function ChatMessage({ msg }) {
@@ -23,9 +21,9 @@ export default function ChatMessage({ msg }) {
                         <span className="chat-streaming-cursor" style={{ opacity: 0.5 }}>|</span>
                     </span>
                 ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <span>
                         {msg.content}
-                    </ReactMarkdown>
+                    </span>
                 )}
             </span>
         </div>

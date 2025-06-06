@@ -301,6 +301,8 @@ export default function useChat() {
 
     const confirmationHandlers = {
         onConfirm: async () => {
+            setPendingTrade(null); // Remove widget immediately
+            setChat(prev => [...prev, { role: "assistant", content: "Trade submission confirmed by user.", timestamp: new Date().toISOString() }]);
             setConfirmLoading(true);
             setError("");
             try {
@@ -346,7 +348,6 @@ export default function useChat() {
             } catch (e) {
                 setChat(prev => [...prev, { role: 'assistant', content: 'Trade submission failed: ' + (e.message || e), timestamp: new Date().toISOString() }]);
             }
-            setPendingTrade(null);
             setConfirmLoading(false);
         },
         onAbort: () => {
