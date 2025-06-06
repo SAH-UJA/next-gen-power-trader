@@ -7,16 +7,30 @@ export function formatTime(isoString) {
 export async function humanizeStructuredReply(prevMessage, apiReply) {
     try {
         const rawConcat = prevMessage + '\n' + apiReply;
-        const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/humanizer", {
+        const res = await fetch("http://localhost:8000/ask/humanizer/stream", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ raw: rawConcat }),
         });
-        const data = await res.json();
-        if (data.answer) {
-            return data.answer;
+
+        if (!res.body || !window.ReadableStream) {
+            // Fallback to old method if streaming not supported
+            const data = await res.json();
+            if (data.answer) {
+                return data.answer;
+            }
+            return apiReply;
         }
-        return apiReply;
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let result = '';
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            result += decoder.decode(value, { stream: true });
+        }
+        return result.trim() || apiReply;
     } catch (e) {
         return apiReply + "\n(Humanizer unavailable)";
     }

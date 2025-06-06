@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+import json
 from src.schemas.ask import (
     AskRequest,
     AskResponse,
@@ -15,26 +17,22 @@ router = APIRouter()
 llm_client = OpenAIClient()
 
 
-@router.post("/assistant", response_model=AskResponse)
-async def ask_assistant(ask: AskRequest):
-    try:
-        llm_answer = llm_client.generate_text(
-            system_prompt=trade_assistant_prompt,
-            user_prompt=ask.question,
-            context=ask.context,
-            tools=TOOLS,
-        )
-        if llm_answer.tool_calls:
-            return AskResponse(
-                answer=None,
-                tool_config={
-                    "function": llm_answer.tool_calls[0].function.name,
-                    "params": json.loads(llm_answer.tool_calls[0].function.arguments),
-                },
-            )
-        return AskResponse(answer=llm_answer.content, tool_config=None)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.post("/assistant/stream")
+async def ask_assistant_stream(ask: AskRequest):
+    def token_generator():
+        try:
+            for token in llm_client.generate_text(
+                system_prompt=trade_assistant_prompt,
+                user_prompt=ask.question,
+                context=ask.context,
+                tools=TOOLS,
+                stream=True,
+            ):
+                yield token
+        except Exception as e:
+            yield f"\n[ERROR]: {str(e)}"
+
+    return StreamingResponse(token_generator(), media_type="application/x-ndjson")
 
 
 @router.post("/humanizer", response_model=HumanizedResponse)
@@ -46,3 +44,19 @@ def humanize_response(data: HumanizeDataRequest):
         return HumanizedResponse(answer=llm_answer.content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/humanizer/stream")
+async def humanize_response_stream(data: HumanizeDataRequest):
+    def token_generator():
+        try:
+            for token in llm_client.generate_text(
+                system_prompt=humanizer_prompt,
+                user_prompt=data.raw,
+                stream=True,
+            ):
+                yield token
+        except Exception as e:
+            yield f"\n[ERROR]: {str(e)}"
+
+    return StreamingResponse(token_generator(), media_type="text/plain")

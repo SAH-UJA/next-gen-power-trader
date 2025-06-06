@@ -29,49 +29,7 @@ function App() {
       .map(msg => ({ role: msg.role, content: msg.content }));
   };
 
-  const handleToolCall = async (toolConfig, prevMessage, newChatArr) => {
-    if (!toolConfig || !toolConfig.function) throw new Error("No tool config found.");
 
-    if (toolConfig.function === "submit_trade") {
-      const confirmMsg = "Please confirm the trade details below before submission.";
-      const chatIdx = newChatArr.length;
-      setPendingTrade({
-        params: toolConfig.params,
-        userQuestion: prevMessage,
-        chatIdx
-      });
-      return confirmMsg;
-    }
-
-    let result = null;
-    let apiReply = "";
-    try {
-      if (toolConfig.function === "get_order_details") {
-        const { orderId } = toolConfig.params || {};
-        if (!orderId) throw new Error("orderId missing in params");
-        const res = await fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/status/${orderId}`);
-        result = await res.json();
-        apiReply = "Order Details:\n" + JSON.stringify(result, null, 2);
-      } else if (toolConfig.function === "get_account_info") {
-        const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/trade/accountInfo");
-        result = await res.json();
-        apiReply = "Account Info:\n" + JSON.stringify(result, null, 2);
-      } else if (toolConfig.function === "get_trade_status") {
-        const params = toolConfig.params || {};
-        const orderId = params.orderId || params.order_id;
-        if (!orderId) throw new Error("orderId missing in params for get_trade_status");
-        const res = await fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/status/${orderId}`);
-        result = await res.json();
-        apiReply = "Trade Status:\n" + JSON.stringify(result, null, 2);
-      } else {
-        throw new Error("Unknown tool function requested.");
-      }
-      const humanized = await humanizeStructuredReply(prevMessage, apiReply);
-      return humanized;
-    } catch (e) {
-      throw new Error("Error in tool API: " + (e.message || e));
-    }
-  };
 
   const sendQuestion = async (text) => {
     if (pendingTrade) return;
@@ -84,7 +42,7 @@ function App() {
     setChat(newChat);
 
     try {
-      const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/assistant", {
+      const res = await fetch("http://localhost:8000/ask/assistant/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -92,24 +50,247 @@ function App() {
           context: buildContext()
         }),
       });
-      const data = await res.json();
 
-      let reply = "";
-      if (data.answer) {
-        reply = data.answer;
-      } else if (data.tool_config) {
-        try {
-          reply = await handleToolCall(data.tool_config, text, newChat);
-        } catch (te) {
-          reply = "Tool Error: " + te.message;
-        }
-      } else {
-        reply = "No answer or tool configuration received.";
+      if (!res.body || !window.ReadableStream) {
+        throw new Error("Streaming not supported in this browser.");
       }
-      setChat(prev => [
-        ...newChat,
-        { role: "assistant", content: reply, timestamp: new Date().toISOString() }
-      ]);
+
+      // Add a new assistant message with empty content
+      let aiMsg = { role: "assistant", content: "", timestamp: new Date().toISOString() };
+      setChat(prev => [...newChat, aiMsg]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let done = false;
+
+      let buffer = "";
+      // Tool call buffering state
+      let toolCallInProgress = false;
+      let toolCallName = null;
+      let toolCallArgsBuffer = "";
+
+      // Helper: Try to parse JSON, return null if fails
+      const tryParseJSON = (str) => {
+        try {
+          return JSON.parse(str);
+        } catch {
+          return null;
+        }
+      };
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          buffer += decoder.decode(value);
+
+          let lines = buffer.split("\n");
+          // Keep the last line in buffer if it's incomplete
+          buffer = lines.pop();
+
+          for (let line of lines) {
+            if (!line.trim()) continue;
+
+            // DEBUG: Log each line received from backend
+            console.log("STREAM LINE:", line);
+
+            // Try to detect tool call JSON event
+            let isToolCall = false;
+            let toolCallObj = null;
+            try {
+              if (line.trim().startsWith("{") && line.trim().endsWith("}")) {
+                const parsed = JSON.parse(line);
+                if (parsed && parsed.tool_call) {
+                  isToolCall = true;
+                  toolCallObj = parsed.tool_call;
+                }
+              }
+            } catch (e) {
+              // If JSON parsing fails, treat as plain text and append to message
+              aiMsg.content += line;
+              setChat(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { ...aiMsg };
+                return updated;
+              });
+              continue; // Skip further processing for this line
+            }
+
+            if (isToolCall && toolCallObj) {
+              // Handle tool call event (fragmented arguments support)
+              const tool = Array.isArray(toolCallObj) ? toolCallObj[0] : toolCallObj;
+              // If a new tool call starts, reset buffer
+              if (tool.function && tool.function.name) {
+                toolCallInProgress = true;
+                toolCallName = tool.function.name;
+                toolCallArgsBuffer = "";
+              }
+              // Accumulate arguments fragments
+              if (toolCallInProgress) {
+                if (tool.function && typeof tool.function.arguments === "string") {
+                  toolCallArgsBuffer += tool.function.arguments;
+                }
+                // Try to parse the buffer as JSON only if it is valid
+                const parsedArgs = tryParseJSON(toolCallArgsBuffer);
+                if (parsedArgs !== null) {
+                  // We have a complete arguments object
+                  if (toolCallName === "submit_trade") {
+                    const confirmMsg = "Please confirm the trade details below before submission.";
+                    setChat(prev => {
+                      const newChat = [
+                        ...prev,
+                        { role: "assistant", content: confirmMsg, timestamp: new Date().toISOString() }
+                      ];
+                      setPendingTrade({
+                        params: parsedArgs,
+                        userQuestion: text,
+                        chatIdx: newChat.length - 1
+                      });
+                      return newChat;
+                    });
+                    // Reset tool call state
+                    toolCallInProgress = false;
+                    toolCallName = null;
+                    toolCallArgsBuffer = "";
+                    done = true;
+                    break;
+                  } else if (toolCallName) {
+                    // For all other function calls, execute the function and stream the humanized response
+                    const functionName = toolCallName;
+                    let apiUrl = "";
+                    let apiBody = {};
+                    let method = "POST";
+                    let args = parsedArgs;
+                    // Map function name to backend endpoint
+                    if (functionName === "get_order_details" && args.orderId) {
+                      apiUrl = `http://localhost:8000/trade/status/${args.orderId}`;
+                      method = "GET";
+                    } else if (functionName === "get_account_info") {
+                      apiUrl = "http://localhost:8000/trade/accountInfo";
+                      method = "GET";
+                    } else if (functionName === "get_trade_status" && (args.orderId || args.order_id)) {
+                      const orderId = args.orderId || args.order_id;
+                      apiUrl = `http://localhost:8000/trade/status/${orderId}`;
+                      method = "GET";
+                    } else {
+                      // Unknown function, just append as text
+                      aiMsg.content += `[Unknown function call: ${functionName}]`;
+                      setChat(prev => {
+                        const updated = [...prev];
+                        updated[updated.length - 1] = { ...aiMsg };
+                        return updated;
+                      });
+                      // Reset tool call state
+                      toolCallInProgress = false;
+                      toolCallName = null;
+                      toolCallArgsBuffer = "";
+                      done = true;
+                      break;
+                    }
+                    // Call the backend API for the function
+                    (async () => {
+                      try {
+                        let apiResult;
+                        if (method === "GET") {
+                          const res = await fetch(apiUrl);
+                          apiResult = await res.json();
+                        } else {
+                          const res = await fetch(apiUrl, {
+                            method,
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(apiBody),
+                          });
+                          apiResult = await res.json();
+                        }
+                        // Now stream the humanized response
+                        const humanizerRes = await fetch("http://localhost:8000/ask/humanizer/stream", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            raw: JSON.stringify(apiResult, null, 2),
+                          }),
+                        });
+                        if (!humanizerRes.body || !window.ReadableStream) {
+                          throw new Error("Streaming not supported in this browser.");
+                        }
+                        const reader2 = humanizerRes.body.getReader();
+                        const decoder2 = new TextDecoder("utf-8");
+                        let done2 = false;
+                        let buffer2 = "";
+                        aiMsg.content = ""; // Reset content for humanized stream
+                        setChat(prev => {
+                          const updated = [...prev];
+                          updated[updated.length - 1] = { ...aiMsg };
+                          return updated;
+                        });
+                        while (!done2) {
+                          const { value: value2, done: doneReading2 } = await reader2.read();
+                          done2 = doneReading2;
+                          if (value2) {
+                            buffer2 += decoder2.decode(value2);
+                            let lines2 = buffer2.split("\n");
+                            buffer2 = lines2.pop();
+                            for (let line2 of lines2) {
+                              if (!line2.trim()) continue;
+                              aiMsg.content += line2;
+                              setChat(prev => {
+                                const updated = [...prev];
+                                updated[updated.length - 1] = { ...aiMsg };
+                                return updated;
+                              });
+                            }
+                          }
+                        }
+                        // If anything left in buffer after stream ends, append as text
+                        if (buffer2 && !done2) {
+                          aiMsg.content += buffer2;
+                          setChat(prev => {
+                            const updated = [...prev];
+                            updated[updated.length - 1] = { ...aiMsg };
+                            return updated;
+                          });
+                        }
+                      } catch (err2) {
+                        aiMsg.content += "[Error executing function call or humanizing response]";
+                        setChat(prev => {
+                          const updated = [...prev];
+                          updated[updated.length - 1] = { ...aiMsg };
+                          return updated;
+                        });
+                      }
+                    })();
+                    // Reset tool call state
+                    toolCallInProgress = false;
+                    toolCallName = null;
+                    toolCallArgsBuffer = "";
+                    done = true;
+                    break;
+                  }
+                }
+                // If not valid JSON, keep buffering until next fragment arrives
+              }
+              // You can add more tool handling logic here as needed
+            } else {
+              aiMsg.content += line;
+              // Update the last assistant message in chat
+              setChat(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { ...aiMsg };
+                return updated;
+              });
+            }
+          }
+        }
+      }
+      // If anything left in buffer after stream ends, append as text
+      if (buffer && !done) {
+        aiMsg.content += buffer;
+        setChat(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...aiMsg };
+          return updated;
+        });
+      }
     } catch (err) {
       setError('Error connecting to backend.');
       setChat(prev => [
@@ -137,7 +318,7 @@ function App() {
       setConfirmLoading(true);
       setError("");
       try {
-        const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/trade/submit", {
+        const res = await fetch("http://localhost:8000/trade/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(pendingTrade.params),
