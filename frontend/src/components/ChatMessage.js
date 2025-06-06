@@ -22,7 +22,13 @@ export default function ChatMessage({ msg }) {
                         <span className="chat-streaming-cursor" style={{ opacity: 0.5 }}>|</span>
                     </span>
                 ) : (
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown
+                        components={{
+                            br: () => null
+                        }}
+                    >
+                        {msg.content}
+                    </ReactMarkdown>
                 )}
             </span>
         </div>
