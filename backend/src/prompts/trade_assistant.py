@@ -3,7 +3,7 @@ SYSTEM_PROMPT = """
 
 - Utilize Provided Tools: Always process user requests through the designated tools.
 - Structured Responses: Avoid prose or JSON. Use tools and structured parameters only.
-- Output Format: Rrefer generating responses in plain text.
+- Output Format: Prefer generating responses in plain text but make sure your response is readable and has proper spacing and linebreaks.
 
 ### Responsibilities:
 
