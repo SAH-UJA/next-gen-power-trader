@@ -1,0 +1,154 @@
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(34, 34, 59, 0.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 1000;
+}
+
+.sidebar-overlay--show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    /* Right for right-side: change to right:0,left:auto */
+    width: 600px;
+    max-width: 90vw;
+    height: 100vh;
+    background: #fff;
+    z-index: 1100;
+    box-shadow: 2px 0 16px 0 rgba(34, 34, 59, 0.13);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(.61, -0.3, .47, 1.57);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar--open {
+    transform: translateX(0);
+}
+
+.sidebar-close-btn {
+    position: absolute;
+    top: 14px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    font-size: 2rem;
+    color: #333;
+    cursor: pointer;
+    z-index: 10;
+    transition: color 0.15s;
+}
+
+.sidebar-close-btn:hover {
+    color: #eb3d3b;
+}
+
+.sidebar-title {
+    margin: 0;
+    padding: 22px 36px 12px 30px;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: #212342;
+    letter-spacing: 0.01em;
+    border-bottom: 1.5px solid #ececf5;
+    background: #f7f6fd;
+}
+
+.sidebar-table-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0px;
+}
+
+/* Table styles, same as before */
+.trade-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-family: "Segoe UI", "Arial", sans-serif;
+    background: #fff;
+}
+
+.trade-table th,
+.trade-table td {
+    padding: 12px 8px;
+    font-size: 1rem;
+    text-align: center;
+    border-bottom: 1.5px solid #e6e6f0;
+}
+
+.trade-table th {
+    background: #212342;
+    color: #fff;
+    font-weight: 700;
+    border-bottom: 2.5px solid #35356b;
+    letter-spacing: 0.03em;
+}
+
+.trade-table__row--even {
+    background: #f7f8fa;
+    transition: background 0.15s;
+}
+
+.trade-table__row--odd {
+    background: #fff;
+    transition: background 0.15s;
+}
+
+.trade-table__row--hover {
+    background: #e8f0fd !important;
+    box-shadow: 0 1px 6px rgba(30, 64, 175, 0.07);
+}
+
+.status--filled {
+    color: #12b886;
+    font-weight: bold;
+}
+
+.status--canceled {
+    color: #eb3d3b;
+    font-weight: bold;
+}
+
+.sidebar-error {
+    color: #eb3d3b;
+    margin: 10px 0;
+}
+
+.sidebar-loading {
+    color: #555;
+    margin: 10px 0;
+}
+
+@media (max-width: 600px) {
+    .sidebar {
+        width: 100vw;
+        max-width: 100vw;
+    }
+
+    .sidebar-title {
+        padding: 11px 10px 8px 16px;
+        font-size: 1.1rem;
+    }
+
+    .sidebar-table-container {
+        padding: 7px 4px 4px 7px;
+    }
+
+    .trade-table th,
+    .trade-table td {
+        padding: 7px 1px;
+        font-size: 0.93rem;
+    }
+}

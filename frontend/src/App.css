@@ -55,7 +55,7 @@
 .chat-empty {
   color: #999;
   text-align: center;
-  margin-top: 10%;
+  margin-top: 7%;
   font-size: 1.1em;
 }
 
@@ -397,4 +397,49 @@
   color: #232323;
   border-bottom-left-radius: 7px;
   border-top-left-radius: 24px;
+}
+
+.chat-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+}
+
+.hamburger-btn {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #fff;
+  border: 2px solid #333;
+  border-radius: 6px;
+  /* or 0 for sharp corners */
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.header-title {
+  margin: 0 auto;
+  font-size: 1.2em;
+  font-weight: bold;
+  text-align: center;
+}
+
+.hamburger-btn:hover {
+  background: #f0f0f0;
+  border-color: #555;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.hamburger-btn:active {
+  background: #e0e0e0;
+  border-color: #1a73e8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }

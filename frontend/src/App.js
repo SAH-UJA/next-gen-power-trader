@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './App.css';
 
 import EmptyChatState from './components/EmptyChatState';
@@ -7,6 +7,7 @@ import ChatInputBar from './components/ChatInputBar';
 import Header from './components/Header';
 import ErrorBanner from './components/ErrorBanner';
 import useChat from './hooks/useChat';
+import TradeTableSidebar from './components/TradeTableSidebar';
 
 function App() {
   const {
@@ -23,10 +24,12 @@ function App() {
     handleSubmit,
     confirmationHandlers,
   } = useChat();
+  const [showSidebar, setShowSidebar] = useState(false);
 
   return (
     <div className="chat-app-container">
-      <Header />
+      <Header onHamburgerClick={() => setShowSidebar(v => !v)} />
+      <TradeTableSidebar visible={showSidebar} onClose={() => setShowSidebar(false)} />
       {chat.length === 0 && (
         <EmptyChatState
           onSampleClick={handleSampleQuestion}
