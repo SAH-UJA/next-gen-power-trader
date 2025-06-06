@@ -12,7 +12,7 @@ function TradeTableSidebar({ visible, onClose, status = "all", limit = 20 }) {
         const fetchTrades = () => {
             setLoading(true);
             setError(null);
-            fetch(`http://localhost:8000/trade/trades?status=${status}&limit=${limit}`)
+            fetch(`https://next-gen-power-trader-app-latest.onrender.com/trade/trades?status=${status}&limit=${limit}`)
                 .then(response => {
                     if (!response.ok) throw new Error("Network response was not ok");
                     return response.json();

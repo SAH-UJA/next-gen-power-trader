@@ -7,7 +7,7 @@ export function formatTime(isoString) {
 export async function humanizeStructuredReply(prevMessage, apiReply) {
     try {
         const rawConcat = prevMessage + '\n' + apiReply;
-        const res = await fetch("http://localhost:8000/ask/humanizer/stream", {
+        const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/humanizer/stream", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ raw: rawConcat }),

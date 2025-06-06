@@ -44,7 +44,7 @@ export default function useChat() {
         setChat(newChat);
 
         try {
-            const res = await fetch("http://localhost:8000/ask/assistant/stream", {
+            const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/assistant/stream", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -148,14 +148,14 @@ export default function useChat() {
                                         let method = "POST";
                                         let args = parsedArgs;
                                         if (functionName === "get_order_details" && args.orderId) {
-                                            apiUrl = `http://localhost:8000/trade/status/${args.orderId}`;
+                                            apiUrl = `https://next-gen-power-trader-app-latest.onrender.com/trade/status/${args.orderId}`;
                                             method = "GET";
                                         } else if (functionName === "get_account_info") {
-                                            apiUrl = "http://localhost:8000/trade/accountInfo";
+                                            apiUrl = "https://next-gen-power-trader-app-latest.onrender.com/trade/accountInfo";
                                             method = "GET";
                                         } else if (functionName === "get_trade_status" && (args.orderId || args.order_id)) {
                                             const orderId = args.orderId || args.order_id;
-                                            apiUrl = `http://localhost:8000/trade/status/${orderId}`;
+                                            apiUrl = `https://next-gen-power-trader-app-latest.onrender.com/trade/status/${orderId}`;
                                             method = "GET";
                                         } else {
                                             aiMsgContent += `[Unknown function call: ${functionName}]`;
@@ -189,7 +189,7 @@ export default function useChat() {
                                                     });
                                                     apiResult = await res.json();
                                                 }
-                                                const humanizerRes = await fetch("http://localhost:8000/ask/humanizer/stream", {
+                                                const humanizerRes = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/humanizer/stream", {
                                                     method: "POST",
                                                     headers: { "Content-Type": "application/json" },
                                                     body: JSON.stringify({
@@ -306,7 +306,7 @@ export default function useChat() {
             setConfirmLoading(true);
             setError("");
             try {
-                const res = await fetch("http://localhost:8000/trade/submit", {
+                const res = await fetch("https://next-gen-power-trader-app-latest.onrender.com/trade/submit", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(pendingTrade.params),
@@ -314,7 +314,7 @@ export default function useChat() {
                 const result = await res.json();
 
                 const rawConcat = pendingTrade.userQuestion + '\nTrade Submitted:\n' + JSON.stringify(result, null, 2);
-                const humanizerRes = await fetch("http://localhost:8000/ask/humanizer/stream", {
+                const humanizerRes = await fetch("https://next-gen-power-trader-app-latest.onrender.com/ask/humanizer/stream", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ raw: rawConcat }),
