@@ -12,7 +12,15 @@ export default function ChatMessage({ msg }) {
                 <span className="chat-time">{timeStr}</span>
             </div>
             <span className="chat-bubble">
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                {msg.streaming
+                    ? (
+                        <span>
+                            {msg.content}
+                            <span className="chat-streaming-cursor" style={{ opacity: 0.5 }}>|</span>
+                        </span>
+                    )
+                    : <ReactMarkdown>{msg.content}</ReactMarkdown>
+                }
             </span>
         </div>
     );

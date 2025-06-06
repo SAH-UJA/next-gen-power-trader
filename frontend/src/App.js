@@ -16,11 +16,12 @@ function App() {
   const [error, setError] = useState("");
   const [pendingTrade, setPendingTrade] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState(""); // Buffer for streaming assistant message
   const chatEndRef = useRef(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chat, pendingTrade]);
+  }, [chat, pendingTrade, streamingContent]);
 
   const buildContext = () => {
     return chat
@@ -36,6 +37,7 @@ function App() {
     setQuestion("");
     setLoading(true);
     setError("");
+    setStreamingContent(""); // Clear streaming buffer
 
     const userTimestamp = new Date().toISOString();
     const newChat = [...chat, { role: "user", content: text, timestamp: userTimestamp }];
@@ -55,9 +57,9 @@ function App() {
         throw new Error("Streaming not supported in this browser.");
       }
 
-      // Prepare to add a new assistant message only when content arrives
-      let aiMsg = { role: "assistant", content: "", timestamp: new Date().toISOString() };
-      let aiMsgAdded = false;
+      // Prepare to buffer assistant message content
+      let aiMsgContent = "";
+      let aiMsgTimestamp = new Date().toISOString();
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
@@ -107,17 +109,8 @@ function App() {
               }
             } catch (e) {
               // If JSON parsing fails, treat as plain text and append to message
-              aiMsg.content += line;
-              if (!aiMsgAdded) {
-                setChat(prev => [...prev, aiMsg]);
-                aiMsgAdded = true;
-              } else {
-                setChat(prev => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = { ...aiMsg };
-                  return updated;
-                });
-              }
+              aiMsgContent += line;
+              setStreamingContent(aiMsgContent);
               continue; // Skip further processing for this line
             }
 
@@ -179,12 +172,8 @@ function App() {
                       method = "GET";
                     } else {
                       // Unknown function, just append as text
-                      aiMsg.content += `[Unknown function call: ${functionName}]`;
-                      setChat(prev => {
-                        const updated = [...prev];
-                        updated[updated.length - 1] = { ...aiMsg };
-                        return updated;
-                      });
+                      aiMsgContent += `[Unknown function call: ${functionName}]`;
+                      setStreamingContent(aiMsgContent);
                       // Reset tool call state
                       toolCallInProgress = false;
                       toolCallName = null;
@@ -193,7 +182,17 @@ function App() {
                       break;
                     }
                     // Call the backend API for the function
-                    (async () => {
+                    // Move async logic to a named function to avoid closure issues
+                    const handleToolCall = async ({
+                      apiUrl,
+                      apiBody,
+                      method,
+                      toolCallName,
+                      setChat,
+                      setStreamingContent,
+                      aiMsgTimestamp,
+                    }) => {
+                      let localAiMsgContent = "";
                       try {
                         let apiResult;
                         if (method === "GET") {
@@ -222,12 +221,8 @@ function App() {
                         const decoder2 = new TextDecoder("utf-8");
                         let done2 = false;
                         let buffer2 = "";
-                        aiMsg.content = ""; // Reset content for humanized stream
-                        setChat(prev => {
-                          const updated = [...prev];
-                          updated[updated.length - 1] = { ...aiMsg };
-                          return updated;
-                        });
+                        localAiMsgContent = ""; // Reset content for humanized stream
+                        setStreamingContent(localAiMsgContent);
                         while (!done2) {
                           const { value: value2, done: doneReading2 } = await reader2.read();
                           done2 = doneReading2;
@@ -237,33 +232,35 @@ function App() {
                             buffer2 = lines2.pop();
                             for (let line2 of lines2) {
                               if (!line2.trim()) continue;
-                              aiMsg.content += line2;
-                              setChat(prev => {
-                                const updated = [...prev];
-                                updated[updated.length - 1] = { ...aiMsg };
-                                return updated;
-                              });
+                              localAiMsgContent += line2;
+                              setStreamingContent(localAiMsgContent);
                             }
                           }
                         }
                         // If anything left in buffer after stream ends, append as text
                         if (buffer2 && !done2) {
-                          aiMsg.content += buffer2;
-                          setChat(prev => {
-                            const updated = [...prev];
-                            updated[updated.length - 1] = { ...aiMsg };
-                            return updated;
-                          });
+                          localAiMsgContent += buffer2;
+                          setStreamingContent(localAiMsgContent);
                         }
+                        // After streaming, push to chat
+                        setChat(prev => [...prev, { role: "assistant", content: localAiMsgContent, timestamp: new Date().toISOString() }]);
+                        setStreamingContent("");
                       } catch (err2) {
-                        aiMsg.content += "[Error executing function call or humanizing response]";
-                        setChat(prev => {
-                          const updated = [...prev];
-                          updated[updated.length - 1] = { ...aiMsg };
-                          return updated;
-                        });
+                        localAiMsgContent += "[Error executing function call or humanizing response]";
+                        setStreamingContent(localAiMsgContent);
+                        setChat(prev => [...prev, { role: "assistant", content: localAiMsgContent, timestamp: new Date().toISOString() }]);
+                        setStreamingContent("");
                       }
-                    })();
+                    };
+                    handleToolCall({
+                      apiUrl,
+                      apiBody,
+                      method,
+                      toolCallName,
+                      setChat,
+                      setStreamingContent,
+                      aiMsgTimestamp,
+                    });
                     // Reset tool call state
                     toolCallInProgress = false;
                     toolCallName = null;
@@ -278,17 +275,8 @@ function App() {
             } else {
               // Only add assistant message if there is actual content (not for tool call fragments)
               if (line.trim() !== "") {
-                aiMsg.content += line;
-                if (!aiMsgAdded) {
-                  setChat(prev => [...prev, aiMsg]);
-                  aiMsgAdded = true;
-                } else {
-                  setChat(prev => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = { ...aiMsg };
-                    return updated;
-                  });
-                }
+                aiMsgContent += line;
+                setStreamingContent(aiMsgContent);
               }
             }
           }
@@ -296,17 +284,13 @@ function App() {
       }
       // If anything left in buffer after stream ends, append as text
       if (buffer && !done) {
-        aiMsg.content += buffer;
-        if (!aiMsgAdded && aiMsg.content.trim() !== "") {
-          setChat(prev => [...prev, aiMsg]);
-          aiMsgAdded = true;
-        } else if (aiMsgAdded) {
-          setChat(prev => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { ...aiMsg };
-            return updated;
-          });
-        }
+        aiMsgContent += buffer;
+        setStreamingContent(aiMsgContent);
+      }
+      // After streaming, push the full message to chat and clear streamingContent
+      if (aiMsgContent.trim() !== "") {
+        setChat(prev => [...prev, { role: "assistant", content: aiMsgContent, timestamp: aiMsgTimestamp }]);
+        setStreamingContent("");
       }
     } catch (err) {
       setError('Error connecting to backend.');
@@ -316,6 +300,7 @@ function App() {
       ]);
     }
     setLoading(false);
+    setStreamingContent("");
   };
 
   const handleSampleQuestion = async (sample) => {
@@ -373,7 +358,9 @@ function App() {
         </>
       )}
       <ChatWindow
-        chat={chat}
+        chat={streamingContent
+          ? [...chat, { role: "assistant", content: streamingContent, timestamp: new Date().toISOString(), streaming: true }]
+          : chat}
         pendingTrade={pendingTrade}
         confirmLoading={confirmLoading}
         confirmationHandlers={confirmationHandlers}

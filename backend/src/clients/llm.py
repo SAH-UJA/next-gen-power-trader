@@ -38,6 +38,16 @@ class OpenAIClient:
                     stream=stream,
                 )
             if stream:
+                buffer = ""
+                import re
+
+                def is_markdown_boundary(text):
+                    # Heuristic: yield at double newlines (paragraphs), code block boundaries, or single newlines
+                    # This can be improved for more markdown constructs
+                    if "\n\n" in text or "```" in text or text.endswith("\n"):
+                        return True
+                    return False
+
                 for chunk in response:
                     print("DEBUG LLM STREAM CHUNK:", chunk)  # Add logging for debugging
                     # Emit tool call events as JSON objects
@@ -63,12 +73,37 @@ class OpenAIClient:
                             serializable_tool_calls = to_dict(tool_calls)
 
                         yield json.dumps({"tool_call": serializable_tool_calls}) + "\n"
-                    # Emit normal content tokens
+                    # Emit normal content tokens, but buffer until a boundary
                     if (
                         hasattr(chunk.choices[0].delta, "content")
                         and chunk.choices[0].delta.content
                     ):
-                        yield chunk.choices[0].delta.content + "\n"
+                        buffer += chunk.choices[0].delta.content
+                        # Only yield at markdown boundaries
+                        while True:
+                            # Find the next boundary (double newline, code block, or line break)
+                            match = re.search(r"(\n\n|```|\n)", buffer)
+                            if match:
+                                boundary_idx = match.end()
+                                to_yield = buffer[:boundary_idx]
+                                # Ensure we do not split multi-byte characters
+                                try:
+                                    to_yield.encode("utf-8")
+                                except UnicodeEncodeError:
+                                    # Wait for more data
+                                    break
+                                yield to_yield
+                                buffer = buffer[boundary_idx:]
+                            else:
+                                break
+                # Yield any remaining buffer at the end
+                if buffer:
+                    try:
+                        buffer.encode("utf-8")
+                        yield buffer
+                    except UnicodeEncodeError:
+                        # Drop incomplete multi-byte char at end
+                        pass
             else:
                 return response.choices[0].message
         except Exception as e:
